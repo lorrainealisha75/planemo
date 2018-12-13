@@ -55,9 +55,7 @@ class ToolInput(object):
             # multiple input (not collection)
             icon = 'param-files'
             for i in self.wf_param_values:
-                inps.append('`%s` %s' % (
-                    i['output_name'],
-                    get_input_tool_name(i['id'], self.wf_steps)))
+                inps.append(get_input_tool_name(i['id'], self.wf_steps))
         else:
             inp = self.wf_param_values
             if 'id' in inp:
@@ -67,9 +65,7 @@ class ToolInput(object):
                     icon = 'param-collection'
                 else:
                     icon = 'param-file'
-                inps = ['`%s` %s' % (
-                    inp['output_name'],
-                    get_input_tool_name(inp['id'], self.wf_steps))]
+                inps = [get_input_tool_name(inp['id'], self.wf_steps)]
         if len(inps) > 0:
             inputlist += templates.render(INPUT_FILE_TEMPLATE, **{
                 "icon": icon,
