@@ -24,7 +24,7 @@ from six import (
 )
 
 from planemo.exit_codes import EXIT_CODE_UNKNOWN_FILE_TYPE, ExitCodeException
-from planemo.galaxy.workflows import describe_outputs
+from planemo.galaxy.workflows import describe_outputs, GALAXY_WORKFLOWS_PREFIX
 from planemo.io import error
 from planemo.test import check_output, for_collections
 
@@ -64,11 +64,20 @@ class RunnableType(Enum):
         return "galaxy" in runnable_type.name
 
 
-_Runnable = collections.namedtuple("Runnable", ["path", "type"])
+_Runnable = collections.namedtuple("Runnable", ["uri", "type"])
 
 
 class Runnable(_Runnable):
     """Abstraction describing tools and workflows."""
+
+    @property
+    def path(self):
+        assert not self.is_remote_workflow_uri
+        return self.uri
+
+    @property
+    def is_remote_workflow_uri(self):
+        return self.uri.startswith(GALAXY_WORKFLOWS_PREFIX)
 
     @property
     def test_data_search_path(self):
@@ -169,6 +178,13 @@ def for_path(path, temp_path=None):
 def for_paths(paths, temp_path=None):
     """Return a specialized list of Runnable objects for paths."""
     return [for_path(path, temp_path=temp_path) for path in paths]
+
+
+def for_id(runnable_id):
+    """Produce a class:`Runnable` for supplied Galaxy workflow ID."""
+    uri = GALAXY_WORKFLOWS_PREFIX + runnable_id
+    runnable = Runnable(uri, RunnableType.galaxy_workflow)
+    return runnable
 
 
 def cases(runnable):
@@ -314,11 +330,16 @@ class TestCase(AbstractTestCase):
         job_info = run_response.job_info
         if job_info is not None:
             data_dict["job"] = job_info
+        invocation_details = run_response.invocation_details
+        if invocation_details is not None:
+            data_dict["invocation_details"] = invocation_details
         data_dict["inputs"] = self._job
         return dict(
             id=("%s_%s" % (self._test_id, self.index)),
             has_data=True,
             data=data_dict,
+            doc=self.doc,
+            test_type=self.runnable.type.name,
         )
 
     @property
@@ -419,8 +440,12 @@ def _tests_path(runnable):
     return None
 
 
-def get_outputs(runnable):
-    """Return a list of :class:`RunnableOutput` objects for this runnable."""
+def get_outputs(runnable, gi=None):
+    """Return a list of :class:`RunnableOutput` objects for this runnable.
+
+    Supply bioblend user Galaxy instance object (as gi) if additional context
+    needed to resolve workflow details.
+    """
     if not runnable.is_single_artifact:
         raise NotImplementedError("Cannot generate outputs for a directory.")
     if runnable.type in [RunnableType.galaxy_tool, RunnableType.cwl_tool]:
@@ -430,7 +455,7 @@ def get_outputs(runnable):
         outputs = [ToolOutput(o) for o in output_datasets.values()]
         return outputs
     elif runnable.type == RunnableType.galaxy_workflow:
-        workflow_outputs = describe_outputs(runnable.path)
+        workflow_outputs = describe_outputs(runnable, gi=gi)
         return [GalaxyWorkflowOutput(o) for o in workflow_outputs]
     elif runnable.type == RunnableType.cwl_workflow:
         workflow = workflow_proxy(runnable.path, strict_cwl_validation=False)
@@ -499,6 +524,10 @@ class RunResponse(object):
         """If job information is available, return as dictionary."""
 
     @abc.abstractproperty
+    def invocation_details(self):
+        """If workflow invocation details are available, return as dictionary."""
+
+    @abc.abstractproperty
     def log(self):
         """If engine related log is available, return as text data."""
 
@@ -520,10 +549,11 @@ class SuccessfulRunResponse(RunResponse):
 class ErrorRunResponse(RunResponse):
     """Description of an error while attempting to execute a Runnable."""
 
-    def __init__(self, error_message, job_info=None, log=None):
+    def __init__(self, error_message, job_info=None, invocation_details=None, log=None):
         """Create an ErrorRunResponse with specified error message."""
         self._error_message = error_message
         self._job_info = job_info
+        self._invocation_details = invocation_details
         self._log = log
 
     @property
@@ -540,6 +570,10 @@ class ErrorRunResponse(RunResponse):
     def job_info(self):
         """Return potentially null stored `job_info` dict."""
         return self._job_info
+
+    @property
+    def invocation_details(self):
+        return self._invocation_details
 
     @property
     def log(self):
