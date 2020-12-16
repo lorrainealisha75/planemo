@@ -50,12 +50,15 @@ def communicate(cmds, **kwds):
     p = commands.shell_process(cmds, **kwds)
     if kwds.get("stdout", None) is None and commands.redirecting_io(sys=sys):
         output = commands.redirect_aware_commmunicate(p)
+        print('10')
     else:
         output = p.communicate()
+        #print('11')
 
     if p.returncode != 0:
         template = "Problem executing commands {0} - ({1}, {2})"
         msg = template.format(cmd_string, output[0], output[1])
+        #print(str(output))
         raise RuntimeError(msg)
     return output
 

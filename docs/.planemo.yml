@@ -3,9 +3,9 @@
 
 ## Specify github credentials for publishing gist links (e.g. with
 ## the `share_test` command).
-#github:
-#  username: <username>
-#  password: <password>
+github:
+  username: lorrainealisha75
+  password: Ungoliant@123
 
 sheds:
   # For each Tool Shed you wish to target enter the API key

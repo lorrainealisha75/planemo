@@ -38,7 +38,6 @@ SUCCESS_MESSAGE = (
     "please open with editor and fill out."
 )
 
-
 @click.command("config_init")
 @options.optional_project_arg(exists=None)
 @click.option(
